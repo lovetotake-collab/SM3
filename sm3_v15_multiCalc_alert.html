@@ -1,0 +1,1967 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SM3 매매 계산기 v15 (다중알림)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        .line-item {
+            padding: 12px;
+            margin: 6px 0;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .line-item:hover {
+            transform: translateX(4px);
+        }
+        .sm-line { background: #dcfce7; border-left: 4px solid #22c55e; }
+        .sm2-line { background: #fef9c3; border-left: 4px solid #eab308; }
+        .sm3-line { background: #fed7aa; border-left: 4px solid #f97316; }
+        .sm4-line { background: #fecdd3; border-left: 4px solid #dc2626; }
+        .sell-line { background: #fecaca; border-left: 4px solid #ef4444; }
+        .buy-point { background: #fee2e2; border: 2px solid #ef4444; font-weight: 700; }
+        .sell-point { background: #dbeafe; border: 2px solid #3b82f6; font-weight: 700; }
+        
+        input[type="text"], input[type="number"] {
+            border: 2px solid #e5e7eb;
+            padding: 10px;
+            border-radius: 8px;
+            width: 100%;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .input-gray { background: #f3f4f6; border-color: #9ca3af; }
+        .input-red { background: #fee2e2; border-color: #fca5a5; }
+        .input-blue { background: #dbeafe; border-color: #93c5fd; }
+        .input-purple { background: #e9d5ff; border-color: #c084fc; }
+        .input-green { background: #d1fae5; border-color: #6ee7b7; }
+        .btn-calculate {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 28px;
+            border-radius: 10px;
+            border: none;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);
+        }
+        .btn-calculate:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
+        }
+        .btn-calculate:active {
+            transform: translateY(0);
+        }
+        .btn-reset {
+            background: #6b7280;
+            color: white;
+            padding: 14px 28px;
+            border-radius: 10px;
+            border: none;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-reset:hover {
+            background: #4b5563;
+            transform: translateY(-2px);
+        }
+        
+        .stock-list-item {
+            background: #f9fafb;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        .stock-list-item:hover {
+            background: #f3f4f6;
+            transform: translateX(4px);
+        }
+        .stock-list-item.selected {
+            background: #e0e7ff;
+            border-color: #667eea;
+        }
+        .delete-btn {
+            background: #ef4444;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .delete-btn:hover {
+            background: #dc2626;
+        }
+        
+        .drag-handle {
+            cursor: move;
+            color: #9ca3af;
+            padding: 0 8px;
+            user-select: none;
+        }
+        .drag-handle:hover {
+            color: #667eea;
+        }
+        
+        .dragging {
+            opacity: 0.5;
+            background: #f3f4f6;
+        }
+        
+        .summary-box {
+            background: #fef9c3;
+            padding: 16px;
+            border-radius: 12px;
+            border: 2px solid #facc15;
+            margin-bottom: 16px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table th {
+            background: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 100%);
+            padding: 10px;
+            text-align: left;
+            font-weight: bold;
+            border-bottom: 2px solid #667eea;
+            position: sticky;
+            top: 0;
+        }
+        table td {
+            padding: 10px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        table tr:hover {
+            background: #f9fafb;
+        }
+        
+        /* 실시간 시세 스타일 */
+        .price-up { color: #dc2626; font-weight: bold; }
+        .price-down { color: #2563eb; font-weight: bold; }
+        .price-flat { color: #1f2937; font-weight: bold; }
+        
+        /* 매수타점 도달 표시 */
+        .price-reached {
+            color: #dc2626;
+            text-decoration: line-through;
+            font-weight: bold;
+        }
+        
+        /* 근접 (현재가 > 매수타점): 녹색 박스 */
+        .proximity-box {
+            background: #bbf7d0;
+            border: 2px solid #22c55e;
+            border-radius: 8px;
+            padding: 4px 8px;
+            animation: glow-green 1.5s ease-in-out infinite;
+            display: inline-block;
+        }
+        
+        @keyframes glow-green {
+            0%, 100% { box-shadow: 0 0 5px rgba(34, 197, 94, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(34, 197, 94, 0.8); }
+        }
+        
+        /* 도달 (현재가 ≈ 매수타점): 주황색 박스 */
+        .proximity-box-equal {
+            background: #fed7aa;
+            border: 2px solid #f97316;
+            border-radius: 8px;
+            padding: 4px 8px;
+            animation: glow-orange 1.5s ease-in-out infinite;
+            display: inline-block;
+        }
+        
+        @keyframes glow-orange {
+            0%, 100% { box-shadow: 0 0 5px rgba(249, 115, 22, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(249, 115, 22, 0.8); }
+        }
+        
+        /* 도달 이하 (현재가 < 매수타점): 주황색 실선 박스 */
+        .proximity-box-below {
+            background: white;
+            border: 2px solid #f97316;
+            border-radius: 8px;
+            padding: 4px 8px;
+            display: inline-block;
+            color: #f97316;
+            font-weight: bold;
+        }
+        
+        .api-status {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            gap: 6px;
+        }
+        .api-status::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .api-status.connected::before {
+            background: #22c55e;
+            box-shadow: 0 0 8px #22c55e;
+        }
+        .api-status.disconnected::before {
+            background: #ef4444;
+        }
+        
+        .sync-status {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            gap: 6px;
+        }
+        .sync-status::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .sync-status.connected::before {
+            background: #22c55e;
+            box-shadow: 0 0 8px #22c55e;
+        }
+        .sync-status.disconnected::before {
+            background: #6b7280;
+        }
+        .sync-status.syncing::before {
+            background: #eab308;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* 디테일 정보 스타일 */
+        .detail-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        .detail-item {
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        /* 알림 설정 스타일 */
+        .alert-settings-btn {
+            background: #f59e0b;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s;
+        }
+        .alert-settings-btn:hover {
+            background: #d97706;
+        }
+        
+        .alert-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .alert-modal.active {
+            display: flex;
+        }
+        .alert-modal-content {
+            background: white;
+            padding: 32px;
+            border-radius: 16px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .toggle-slider {
+            background-color: #667eea;
+        }
+        input:checked + .toggle-slider:before {
+            transform: translateX(26px);
+        }
+        
+        .alert-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 2000;
+            animation: slideIn 0.3s ease-out;
+            max-width: 350px;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="max-w-7xl mx-auto">
+        <!-- 헤더 -->
+        <div class="card">
+            <div class="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                    <h1 class="text-3xl font-bold mb-2 flex items-center gap-3">
+                        <span class="text-4xl">📊</span>
+                        <span class="bg-gradient-to-r from-purple-600 to-blue-600 text-transparent bg-clip-text">
+                            SM라인 매매 계산기 v7
+                        </span>
+                    </h1>
+                    <p class="text-gray-600 text-sm">
+                        종목 관리 기능이 추가된 고급 버전 (구글 드라이브 동기화 + 키움 API 실시간 시세)
+                    </p>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="manualBackup()" id="backupBtn" disabled
+                            class="px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        💾 백업
+                    </button>
+                    <button onclick="manualLoad()" id="loadBtn" disabled
+                            class="px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        📥 로드
+                    </button>
+                    <button onclick="handleGoogleAuth()" 
+                            class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
+                        <span id="googleBtnText">🔐 구글 로그인</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="mt-4 flex justify-between items-center flex-wrap gap-4">
+                <div class="flex items-center gap-4">
+                    <button id="alertSettingsBtn" class="alert-settings-btn" onclick="openAlertSettings()">
+                        <span>🔔</span>
+                        <span>알림 설정</span>
+                    </button>
+                    <div id="syncStatus" class="sync-status disconnected">
+                        <span id="statusText">연결 안됨</span>
+                    </div>
+                    <div id="apiStatus" class="api-status disconnected">
+                        <span id="apiStatusText">연결 안됨</span>
+                    </div>
+                </div>
+                <div id="lastSyncTime" class="text-xs text-gray-500"></div>
+            </div>
+        </div>
+
+        <!-- 입력 폼 -->
+        <div class="card">
+            <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
+                📝 종목 정보 입력
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-gray-700">종목명</label>
+                    <input type="text" id="stockName" placeholder="종목명 입력"
+                           class="input-gray">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-gray-700">종목코드</label>
+                    <input type="text" id="stockCode" placeholder="종목코드 (선택)"
+                           class="input-gray">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-red-600">고가(₩)</label>
+                    <input type="text" id="highPrice" placeholder="고가입력"
+                           class="input-red">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-blue-600">저가 (₩)</label>
+                    <input type="text" id="lowPrice" placeholder="저가 입력"
+                           class="input-blue">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-purple-600">반등저가 (₩)</label>
+                    <input type="text" id="bouncePrice" placeholder="선택사항"
+                           class="input-purple">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-green-600">수정저가 (₩)</label>
+                    <input type="text" id="adjustedPrice" placeholder="선택사항"
+                           class="input-green">
+                </div>
+            </div>
+
+            <div class="flex gap-3 flex-wrap">
+                <button onclick="calculate()" class="btn-calculate flex-1 min-w-[200px]">
+                    ✅ 계산하기
+                </button>
+                <button onclick="addToList()" class="btn-calculate flex-1 min-w-[200px]"
+                        style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                    💾 리스트에 추가
+                </button>
+                <button onclick="resetInputs()" class="btn-reset">
+                    🔄 입력 초기화
+                </button>
+            </div>
+            
+            <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p class="text-sm text-yellow-800">
+                    💡 팁: 고가, 저가만 입력해도 SM라인과 매수타점을 확인할 수 있습니다. 반등저가를 입력하면 매도타점도 확인할 수 있습니다.
+                </p>
+            </div>
+        </div>
+
+        <!-- 종목 리스트 -->
+        <div class="card">
+            <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
+                📋 저장된 종목 리스트
+            </h2>
+            <p class="text-sm text-gray-600 mb-4">종목을 클릭하면 정보를 불러옵니다</p>
+            <div id="stockList"></div>
+        </div>
+        
+        <!-- 종목 디테일 정보 -->
+        <div id="stockDetail" class="card" style="display: none;">
+            <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
+                📌 <span id="detailStockName"></span> 상세정보
+            </h2>
+            
+            <!-- 첫 번째 줄: 매매타점 요약 + 매도라인 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                <!-- 매매타점 요약 -->
+                <div class="detail-card" style="background: white; border: 3px solid #f59e0b; border-radius: 12px;">
+                    <h4 class="font-bold mb-3 text-orange-600 flex items-center gap-2">
+                        <span style="font-size: 20px;">⚠️</span>
+                        <span>매매타점 요약</span>
+                    </h4>
+                    
+                    <!-- 종목명, 상승률, 반등폭 -->
+                    <div class="bg-yellow-50 p-3 rounded-lg mb-3" style="background: #fef9c3;">
+                        <div class="grid grid-cols-3 gap-3">
+                            <div>
+                                <div class="text-xs text-gray-600 mb-1">종목명</div>
+                                <div class="font-bold text-base" id="summaryStockName" style="color: #1f2937;"></div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-xs text-gray-600 mb-1">상승률</div>
+                                <div class="font-bold text-base" id="summaryPriceRate" style="color: #1f2937;"></div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xs text-gray-600 mb-1">반등폭</div>
+                                <div class="font-bold text-base" id="summaryBounceRate" style="color: #7c3aed;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 매수 타점 & 손절 -->
+                    <div class="mb-3">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-red-600 font-bold" style="font-size: 14px;">🔴 매수 타점 & 손절</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="p-3 rounded-lg" style="background: #fee2e2; border: 2px solid #fecaca;">
+                                <div class="text-xs text-gray-600 mb-1">1차 매수</div>
+                                <div class="text-xs text-gray-500 mb-1">(SM2라인 4단위)</div>
+                                <div id="summaryBuy1" class="font-bold text-lg text-red-600"></div>
+                            </div>
+                            <div class="p-3 rounded-lg" style="background: #fee2e2; border: 2px solid #fecaca;">
+                                <div class="text-xs text-gray-600 mb-1">2차 매수</div>
+                                <div class="text-xs text-gray-500 mb-1">(SM2라인 5단위)</div>
+                                <div id="summaryBuy2" class="font-bold text-lg text-red-600"></div>
+                            </div>
+                            <div class="p-3 rounded-lg" style="background: #fee2e2; border: 2px solid #fecaca;">
+                                <div class="text-xs text-gray-600 mb-1">3차 매수</div>
+                                <div class="text-xs text-gray-500 mb-1">(SM3라인 4단위)</div>
+                                <div id="summaryBuy3" class="font-bold text-lg text-red-600"></div>
+                            </div>
+                            <div class="p-3 rounded-lg" style="background: #fee2e2; border: 2px solid #fecaca;">
+                                <div class="text-xs text-gray-600 mb-1">4차 매수</div>
+                                <div class="text-xs text-gray-500 mb-1">(SM3라인 5단위)</div>
+                                <div id="summaryBuy4" class="font-bold text-lg text-red-600"></div>
+                            </div>
+                        </div>
+                        <div class="mt-2 p-3 rounded-lg" style="background: #f3f4f6; border: 2px solid #e5e7eb;">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <div class="text-xs text-gray-600">손절</div>
+                                    <div class="text-xs text-gray-500">(SM4라인 2단위)</div>
+                                </div>
+                                <div id="summaryStopLoss" class="font-bold text-lg" style="color: #374151;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 매도 타점 -->
+                    <div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-blue-600 font-bold" style="font-size: 14px;">🔵 매도 타점</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="p-3 rounded-lg" style="background: #dbeafe; border: 2px solid #bfdbfe;">
+                                <div class="text-xs text-gray-600 mb-1">1차 매도</div>
+                                <div class="text-xs text-gray-500 mb-1" id="sell1Description">(매도라인 3단위)</div>
+                                <div id="summarySell1" class="font-bold text-lg text-blue-600"></div>
+                            </div>
+                            <div class="p-3 rounded-lg" style="background: #dbeafe; border: 2px solid #bfdbfe;">
+                                <div class="text-xs text-gray-600 mb-1">2차 매도</div>
+                                <div class="text-xs text-gray-500 mb-1" id="sell2Description">(매도라인 2단위)</div>
+                                <div id="summarySell2" class="font-bold text-lg text-blue-600"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 매도라인 -->
+                <div class="detail-card" style="background: white; border: 2px solid #ec4899; border-radius: 12px;">
+                    <h4 class="font-bold mb-3 text-pink-700 flex items-center gap-2">
+                        <span>💙 매도라인</span>
+                    </h4>
+                    <div class="space-y-2">
+                        <div class="detail-item" style="background: #fce7f3; padding: 10px; border-radius: 8px; border-left: 4px solid #ec4899;">
+                            <div class="flex justify-between">
+                                <span>1단위:</span>
+                                <span id="sell_line_1" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fce7f3; padding: 10px; border-radius: 8px; border-left: 4px solid #ec4899;">
+                            <div class="flex justify-between items-center">
+                                <span>2단위 <span class="text-blue-600 text-sm">← 2차 매도</span></span>
+                                <span id="sell_line_2" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fce7f3; padding: 10px; border-radius: 8px; border-left: 4px solid #ec4899;">
+                            <div class="flex justify-between items-center">
+                                <span>3단위 <span class="text-blue-600 text-sm">← 1차 매도</span></span>
+                                <span id="sell_line_3" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fce7f3; padding: 10px; border-radius: 8px; border-left: 4px solid #ec4899;">
+                            <div class="flex justify-between">
+                                <span>4단위:</span>
+                                <span id="sell_line_4" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fce7f3; padding: 10px; border-radius: 8px; border-left: 4px solid #ec4899;">
+                            <div class="flex justify-between">
+                                <span>5단위 (반등저가):</span>
+                                <span id="sell_line_5" class="font-bold"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 두 번째 줄: SM라인 + SM2라인 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                <!-- SM라인 -->
+                <div class="detail-card" style="background: white; border: 2px solid #22c55e; border-radius: 12px;">
+                    <h4 class="font-bold mb-3 text-green-700 flex items-center gap-2">
+                        <span>⚫ SM라인</span>
+                    </h4>
+                    <div class="space-y-2">
+                        <div class="detail-item" style="background: #f0fdf4; padding: 10px; border-radius: 8px; border-left: 4px solid #22c55e;">
+                            <div class="flex justify-between">
+                                <span>1단위:</span>
+                                <span id="sm1_1" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #f0fdf4; padding: 10px; border-radius: 8px; border-left: 4px solid #22c55e;">
+                            <div class="flex justify-between">
+                                <span>2단위:</span>
+                                <span id="sm1_2" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #f0fdf4; padding: 10px; border-radius: 8px; border-left: 4px solid #22c55e;">
+                            <div class="flex justify-between">
+                                <span>3단위:</span>
+                                <span id="sm1_3" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #f0fdf4; padding: 10px; border-radius: 8px; border-left: 4px solid #22c55e;">
+                            <div class="flex justify-between">
+                                <span>4단위:</span>
+                                <span id="sm1_4" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #f0fdf4; padding: 10px; border-radius: 8px; border-left: 4px solid #22c55e;">
+                            <div class="flex justify-between">
+                                <span>5단위:</span>
+                                <span id="sm1_5" class="font-bold"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- SM2라인 -->
+                <div class="detail-card" style="background: white; border: 2px solid #eab308; border-radius: 12px;">
+                    <h4 class="font-bold mb-3 text-yellow-700 flex items-center gap-2">
+                        <span>⚫ SM2라인</span>
+                    </h4>
+                    <div class="space-y-2">
+                        <div class="detail-item" style="background: #fef9c3; padding: 10px; border-radius: 8px; border-left: 4px solid #eab308;">
+                            <div class="flex justify-between">
+                                <span>1단위:</span>
+                                <span id="sm2_1" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fef9c3; padding: 10px; border-radius: 8px; border-left: 4px solid #eab308;">
+                            <div class="flex justify-between">
+                                <span>2단위:</span>
+                                <span id="sm2_2" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fef9c3; padding: 10px; border-radius: 8px; border-left: 4px solid #eab308;">
+                            <div class="flex justify-between">
+                                <span>3단위:</span>
+                                <span id="sm2_3" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fef9c3; padding: 10px; border-radius: 8px; border-left: 4px solid #eab308;">
+                            <div class="flex justify-between items-center">
+                                <span>4단위 <span class="text-red-600 text-sm">← 1차 매수</span></span>
+                                <span id="sm2_4" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fef9c3; padding: 10px; border-radius: 8px; border-left: 4px solid #eab308;">
+                            <div class="flex justify-between items-center">
+                                <span>5단위 <span class="text-red-600 text-sm">← 2차 매수</span></span>
+                                <span id="sm2_5" class="font-bold"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 세 번째 줄: SM3라인 + SM4라인 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <!-- SM3라인 -->
+                <div class="detail-card" style="background: white; border: 2px solid #f97316; border-radius: 12px;">
+                    <h4 class="font-bold mb-3 text-orange-700 flex items-center gap-2">
+                        <span>⚫ SM3라인</span>
+                    </h4>
+                    <div class="space-y-2">
+                        <div class="detail-item" style="background: #fed7aa; padding: 10px; border-radius: 8px; border-left: 4px solid #f97316;">
+                            <div class="flex justify-between">
+                                <span>1단위:</span>
+                                <span id="sm3_1" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fed7aa; padding: 10px; border-radius: 8px; border-left: 4px solid #f97316;">
+                            <div class="flex justify-between">
+                                <span>2단위:</span>
+                                <span id="sm3_2" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fed7aa; padding: 10px; border-radius: 8px; border-left: 4px solid #f97316;">
+                            <div class="flex justify-between">
+                                <span>3단위:</span>
+                                <span id="sm3_3" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fed7aa; padding: 10px; border-radius: 8px; border-left: 4px solid #f97316;">
+                            <div class="flex justify-between items-center">
+                                <span>4단위 <span class="text-red-600 text-sm">← 3차 매수</span></span>
+                                <span id="sm3_4" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fed7aa; padding: 10px; border-radius: 8px; border-left: 4px solid #f97316;">
+                            <div class="flex justify-between items-center">
+                                <span>5단위 <span class="text-red-600 text-sm">← 4차 매수</span></span>
+                                <span id="sm3_5" class="font-bold"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- SM4라인 (손절라인) -->
+                <div class="detail-card" style="background: white; border: 2px solid #dc2626; border-radius: 12px;">
+                    <h4 class="font-bold mb-3 text-red-700 flex items-center gap-2">
+                        <span>⚫ SM4라인 (손절라인)</span>
+                    </h4>
+                    <div class="space-y-2">
+                        <div class="detail-item" style="background: #fecdd3; padding: 10px; border-radius: 8px; border-left: 4px solid #dc2626;">
+                            <div class="flex justify-between">
+                                <span>1단위:</span>
+                                <span id="sm4_1" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fecdd3; padding: 10px; border-radius: 8px; border-left: 4px solid #dc2626;">
+                            <div class="flex justify-between items-center">
+                                <span>2단위 <span class="text-gray-700 text-sm">← 손절</span></span>
+                                <span id="sm4_2" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fecdd3; padding: 10px; border-radius: 8px; border-left: 4px solid #dc2626;">
+                            <div class="flex justify-between">
+                                <span>3단위:</span>
+                                <span id="sm4_3" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fecdd3; padding: 10px; border-radius: 8px; border-left: 4px solid #dc2626;">
+                            <div class="flex justify-between">
+                                <span>4단위:</span>
+                                <span id="sm4_4" class="font-bold"></span>
+                            </div>
+                        </div>
+                        <div class="detail-item" style="background: #fecdd3; padding: 10px; border-radius: 8px; border-left: 4px solid #dc2626;">
+                            <div class="flex justify-between">
+                                <span>5단위:</span>
+                                <span id="sm4_5" class="font-bold"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== Socket.IO 실시간 연결 =====
+        const socket = io('http://localhost:5000', {
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionAttempts: 10
+        });
+        
+        // 연결 상태
+        socket.on('connect', () => {
+            console.log('✅ WebSocket 연결 성공');
+            updateAPIStatus('connected', '키움 API 연결됨');
+            registerAllStocks();
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('❌ WebSocket 연결 끊김');
+            updateAPIStatus('disconnected', '연결 안됨');
+        });
+        
+        socket.on('connection_status', (data) => {
+            if (data.logged_in) {
+                updateAPIStatus('connected', '키움 API 연결됨');
+            } else {
+                updateAPIStatus('disconnected', '키움 API 로그인 필요');
+            }
+        });
+        
+        // 실시간 시세 수신
+        socket.on('realtime_update', (data) => {
+            const { code, name, data: priceData } = data;
+            console.log('📈 실시간 시세:', code, name, priceData);
+            
+            const stock = stockDatabase.find(s => s.code === code);
+            if (stock) {
+                stock.currentPrice = priceData.current_price;
+                stock.changeRate = priceData.change_rate;
+                
+                // 로컬스토리지 업데이트
+                localStorage.setItem('smStocks', JSON.stringify(stockDatabase));
+                
+                // 화면 업데이트
+                renderStockList();
+                
+                // 상세 정보가 열려있으면 업데이트
+                const detailCard = document.getElementById('stockDetail');
+                if (detailCard.style.display === 'block') {
+                    const detailName = document.getElementById('detailStockName').textContent;
+                    if (detailName === stock.name) {
+                        showStockDetail(stockDatabase.indexOf(stock));
+                    }
+                }
+            }
+        });
+        
+        // 매수타점 알림 수신
+        socket.on('price_alert', (data) => {
+            const { name, current_price, buy_point, diff_percent, type, status } = data;
+            
+            console.log('🔔 알림 수신:', data);
+            
+            const message = `
+                <strong>${name}</strong><br>
+                현재가: ₩${current_price.toLocaleString()}<br>
+                매수타점: ₩${buy_point.toLocaleString()}<br>
+                차이: ${diff_percent > 0 ? '+' : ''}${diff_percent.toFixed(2)}%
+            `;
+            
+            showAlertToast(message, type);
+        });
+        
+        // 등록 성공 메시지
+        socket.on('registration_success', (data) => {
+            console.log('✅ 실시간 등록 성공:', data.message);
+            updateAPIStatus('connected', `실시간 모니터링 중 (${data.stocks.length}개)`);
+        });
+        
+        // 에러 메시지
+        socket.on('error', (data) => {
+            console.error('❌ 오류:', data.message);
+            alert(`오류: ${data.message}`);
+        });
+        
+        function updateAPIStatus(status, text) {
+            const statusElement = document.getElementById('apiStatus');
+            const textElement = document.getElementById('apiStatusText');
+            
+            statusElement.className = `api-status ${status}`;
+            textElement.textContent = text;
+        }
+        
+        function registerAllStocks() {
+            if (!socket || !socket.connected) {
+                console.log('⚠️  WebSocket 연결 안 됨');
+                return;
+            }
+            
+            const stocksToRegister = stockDatabase
+                .filter(s => s.code)
+                .map(s => {
+                    // 1차 매수타점 계산 (SM2라인 4단위)
+                    let buyPoint = null;
+                    if (s.high && s.low) {
+                        const effectiveLow = s.adjusted || s.low;
+                        const priceDiff = s.high - s.low;
+                        const unit = priceDiff / 4;
+                        buyPoint = Math.round(effectiveLow - unit * 3);
+                    }
+                    
+                    return {
+                        code: s.code, 
+                        name: s.name,
+                        buy_point: buyPoint
+                    };
+                });
+            
+            if (stocksToRegister.length > 0) {
+                socket.emit('register_stocks', { source: 'SM3', stocks: stocksToRegister });
+                console.log(`📡 실시간 시세 등록: ${stocksToRegister.length}개 종목`);
+            } else {
+                console.log('등록할 종목이 없습니다');
+            }
+        }
+        
+        function updateStockPrice(data) {
+            const stock = stockDatabase.find(s => s.code === data.code);
+            if (!stock) return;
+            
+            const currentPrice = parseInt(data.current_price.replace(/[^\d]/g, ''));
+            const changeRate = parseFloat(data.change_rate);
+            
+            stock.currentPrice = currentPrice;
+            stock.changeRate = changeRate;
+            
+            // 매수타점 도달 체크
+            if (!stock.reachedFlags) {
+                stock.reachedFlags = [false, false, false, false];
+            }
+            
+            const effectiveLow = stock.adjusted !== null ? stock.adjusted : stock.low;
+            const priceDiff = stock.high - stock.low;
+            const unit = priceDiff / 4;
+            
+            const buy1 = adjustBuyPrice(effectiveLow - unit * 3);  // SM2라인 4단위
+            const buy2 = adjustBuyPrice(effectiveLow - unit * 4);  // SM2라인 5단위
+            const buy3 = adjustBuyPrice(buy2 - unit * 3);          // SM3라인 4단위
+            const buy4 = adjustBuyPrice(buy2 - unit * 4);          // SM3라인 5단위
+            
+            if (currentPrice <= buy1 * 1.002) stock.reachedFlags[0] = true;
+            if (currentPrice <= buy2 * 1.002) stock.reachedFlags[1] = true;
+            if (currentPrice <= buy3 * 1.002) stock.reachedFlags[2] = true;
+            if (currentPrice <= buy4 * 1.002) stock.reachedFlags[3] = true;
+            
+            renderStockList();
+            
+            // 현재 선택된 종목이면 디테일 정보도 업데이트
+            if (currentSelectedIndex >= 0 && stockDatabase[currentSelectedIndex] === stock) {
+                showStockDetail(currentSelectedIndex);
+            }
+        }
+        
+        // ===== 가격 포맷팅 함수 =====
+        function formatPrice(price) {
+            return `₩${Math.round(price).toLocaleString('ko-KR')}`;
+        }
+        
+        function formatInputPrice(input) {
+            let value = input.value.replace(/[^\d]/g, '');
+            if (value) {
+                input.value = parseInt(value).toLocaleString('ko-KR');
+            }
+        }
+        
+        function parsePrice(priceStr) {
+            return parseInt(priceStr.replace(/[^\d]/g, '')) || 0;
+        }
+        
+        // ===== 가격 조정 함수 =====
+        function adjustBuyPrice(price) {
+            if (price < 1000) return Math.floor(price);
+            if (price < 5000) return Math.floor(price / 5) * 5;
+            if (price < 10000) return Math.floor(price / 10) * 10;
+            if (price < 50000) return Math.floor(price / 50) * 50;
+            if (price < 100000) return Math.floor(price / 100) * 100;
+            if (price < 500000) return Math.floor(price / 500) * 500;
+            return Math.floor(price / 1000) * 1000;
+        }
+        
+        function adjustSellPrice(price) {
+            if (price < 1000) return Math.ceil(price);
+            if (price < 5000) return Math.ceil(price / 5) * 5;
+            if (price < 10000) return Math.ceil(price / 10) * 10;
+            if (price < 50000) return Math.ceil(price / 50) * 50;
+            if (price < 100000) return Math.ceil(price / 100) * 100;
+            if (price < 500000) return Math.ceil(price / 500) * 500;
+            return Math.ceil(price / 1000) * 1000;
+        }
+        
+        // ===== 근접도 체크 함수 (3단계: close, equal, below) =====
+        function checkProximity(currentPrice, targetPrice) {
+            if (!currentPrice || !targetPrice) {
+                return { isClose: false, isEqual: false, isBelow: false, percentage: 0 };
+            }
+            
+            const diff = currentPrice - targetPrice;
+            const percentage = (diff / targetPrice) * 100;
+            
+            // 도달 이하 (현재가 < 타점가)
+            if (diff < 0) {
+                return { isClose: false, isEqual: false, isBelow: true, percentage: percentage.toFixed(2) };
+            }
+            
+            // 도달 (현재가 ≈ 타점가, 0~0.3%)
+            if (percentage >= 0 && percentage <= 0.3) {
+                return { isClose: false, isEqual: true, isBelow: false, percentage: percentage.toFixed(2) };
+            }
+            
+            // 근접 (0.3~1.0%)
+            if (percentage > 0.3 && percentage <= 1.0) {
+                return { isClose: true, isEqual: false, isBelow: false, percentage: percentage.toFixed(2) };
+            }
+            
+            return { isClose: false, isEqual: false, isBelow: false, percentage: percentage.toFixed(2) };
+        }
+        
+        // ===== 전역 변수 =====
+        let stockDatabase = JSON.parse(localStorage.getItem('smStocks')) || [];
+        let currentSelectedIndex = -1;
+        let draggedIndex = null;
+        
+        // ===== 구글 드라이브 관련 =====
+        const CLIENT_ID = '574140412573-n0jau2i3uph1v5p3hi9v004m44bnopq8.apps.googleusercontent.com';
+        const API_KEY = 'YOUR_API_KEY';
+        const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+        const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+        
+        let tokenClient;
+        let gapiInited = false;
+        let gisInited = false;
+        let accessToken = null;
+        let driveFileId = null;  // 구글 드라이브 파일 ID
+        const DRIVE_FILENAME = 'sm_stocks_data.json';
+        
+        function gapiLoaded() {
+            gapi.load('client', initializeGapiClient);
+        }
+        
+        async function initializeGapiClient() {
+            await gapi.client.init({
+                apiKey: API_KEY,
+                discoveryDocs: [DISCOVERY_DOC],
+            });
+            gapiInited = true;
+        }
+        
+        function gisLoaded() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: '',
+            });
+            gisInited = true;
+        }
+        
+        function handleGoogleAuth() {
+            if (accessToken) {
+                signOut();
+            } else {
+                tokenClient.callback = async (resp) => {
+                    if (resp.error !== undefined) {
+                        throw (resp);
+                    }
+                    accessToken = gapi.client.getToken().access_token;
+                    localStorage.setItem('google_access_token', accessToken);
+                    localStorage.setItem('google_token_expiry', Date.now() + (3600 * 1000));
+                    
+                    updateSyncStatus('connected', '동기화 활성');
+                    document.getElementById('googleBtnText').textContent = '🔓 로그아웃';
+                    document.getElementById('backupBtn').disabled = false;
+                    document.getElementById('backupBtn').classList.remove('bg-gray-400');
+                    document.getElementById('backupBtn').classList.add('bg-green-600', 'hover:bg-green-700');
+                    document.getElementById('loadBtn').disabled = false;
+                    document.getElementById('loadBtn').classList.remove('bg-gray-400');
+                    document.getElementById('loadBtn').classList.add('bg-blue-600', 'hover:bg-blue-700');
+                    
+                    // 기존 파일 ID 찾기 (자동 로드 안함)
+                    driveFileId = await findDriveFile(DRIVE_FILENAME);
+                    console.log('기존 파일 ID:', driveFileId);
+                };
+                
+                tokenClient.requestAccessToken({prompt: 'consent'});
+            }
+        }
+        
+        function signOut() {
+            if (accessToken) {
+                google.accounts.oauth2.revoke(accessToken);
+                accessToken = null;
+                driveFileId = null;  // 파일 ID 초기화
+                localStorage.removeItem('google_access_token');
+                localStorage.removeItem('google_token_expiry');
+                
+                updateSyncStatus('disconnected', '연결 안됨');
+                document.getElementById('googleBtnText').textContent = '🔐 구글 로그인';
+                document.getElementById('backupBtn').disabled = true;
+                document.getElementById('backupBtn').classList.add('bg-gray-400');
+                document.getElementById('backupBtn').classList.remove('bg-green-600', 'hover:bg-green-700');
+                document.getElementById('loadBtn').disabled = true;
+                document.getElementById('loadBtn').classList.add('bg-gray-400');
+                document.getElementById('loadBtn').classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            }
+        }
+        
+        async function restoreLoginState() {
+            const savedToken = localStorage.getItem('google_access_token');
+            const expiry = localStorage.getItem('google_token_expiry');
+            
+            if (savedToken && expiry && Date.now() < parseInt(expiry)) {
+                gapi.client.setToken({access_token: savedToken});
+                accessToken = savedToken;
+                updateSyncStatus('connected', '동기화 활성');
+                document.getElementById('googleBtnText').textContent = '🔓 로그아웃';
+                document.getElementById('backupBtn').disabled = false;
+                document.getElementById('backupBtn').classList.remove('bg-gray-400');
+                document.getElementById('backupBtn').classList.add('bg-green-600', 'hover:bg-green-700');
+                document.getElementById('loadBtn').disabled = false;
+                document.getElementById('loadBtn').classList.remove('bg-gray-400');
+                document.getElementById('loadBtn').classList.add('bg-blue-600', 'hover:bg-blue-700');
+                
+                // 기존 파일 ID만 찾기 (자동 로드 안함)
+                driveFileId = await findDriveFile(DRIVE_FILENAME);
+                console.log('기존 파일 ID:', driveFileId);
+            }
+        }
+        
+        function updateSyncStatus(status, text) {
+            const statusElement = document.getElementById('syncStatus');
+            const textElement = document.getElementById('statusText');
+            
+            statusElement.className = `sync-status ${status}`;
+            textElement.textContent = text;
+        }
+        
+        async function saveToGoogleDrive() {
+            if (!accessToken) {
+                alert('구글 로그인이 필요합니다.');
+                return;
+            }
+            
+            try {
+                updateSyncStatus('syncing', '저장 중...');
+                
+                // driveFileId가 없으면 파일 검색
+                if (!driveFileId) {
+                    driveFileId = await findDriveFile(DRIVE_FILENAME);
+                }
+                
+                const content = JSON.stringify(stockDatabase, null, 2);
+                const blob = new Blob([content], { type: 'application/json' });
+                
+                const metadata = {
+                    name: DRIVE_FILENAME,
+                    mimeType: 'application/json'
+                };
+                
+                const form = new FormData();
+                form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+                form.append('file', blob);
+                
+                let url, method;
+                if (driveFileId) {
+                    // 기존 파일 업데이트
+                    url = `https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=multipart`;
+                    method = 'PATCH';
+                    console.log('기존 파일 업데이트:', driveFileId);
+                } else {
+                    // 새 파일 생성
+                    url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+                    method = 'POST';
+                    console.log('새 파일 생성');
+                }
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: form
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    // 새로 생성된 경우 파일 ID 저장
+                    if (!driveFileId && result.id) {
+                        driveFileId = result.id;
+                        console.log('새 파일 ID 저장:', driveFileId);
+                    }
+                    updateSyncStatus('connected', '저장 완료');
+                    updateLastSyncTime();
+                    alert('백업이 완료되었습니다!');
+                    setTimeout(() => updateSyncStatus('connected', '동기화 활성'), 2000);
+                } else {
+                    throw new Error('저장 실패: ' + response.status);
+                }
+            } catch (error) {
+                console.error('구글 드라이브 저장 오류:', error);
+                updateSyncStatus('connected', '저장 오류');
+                alert('백업 실패: ' + error.message);
+                setTimeout(() => updateSyncStatus('connected', '동기화 활성'), 2000);
+            }
+        }
+        
+        async function loadFromGoogleDrive() {
+            if (!accessToken) {
+                alert('구글 로그인이 필요합니다.');
+                return;
+            }
+            
+            try {
+                updateSyncStatus('syncing', '불러오는 중...');
+                
+                const fileId = await findDriveFile(DRIVE_FILENAME);
+                if (!fileId) {
+                    updateSyncStatus('connected', '파일 없음');
+                    alert('구글 드라이브에 백업 파일이 없습니다.');
+                    setTimeout(() => updateSyncStatus('connected', '동기화 활성'), 2000);
+                    return;
+                }
+                
+                // 찾은 파일 ID 저장
+                driveFileId = fileId;
+                console.log('로드할 파일 ID:', driveFileId);
+                
+                const response = await fetch(
+                    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`
+                        }
+                    }
+                );
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('로드된 데이터:', data);
+                    
+                    if (data && Array.isArray(data) && data.length > 0) {
+                        stockDatabase = data;
+                        localStorage.setItem('smStocks', JSON.stringify(stockDatabase));
+                        renderStockList();
+                        registerAllStocks();
+                        updateSyncStatus('connected', '불러오기 완료');
+                        updateLastSyncTime();
+                        alert(`${data.length}개 종목을 불러왔습니다!`);
+                    } else {
+                        alert('백업 파일에 종목 데이터가 없습니다.');
+                    }
+                    setTimeout(() => updateSyncStatus('connected', '동기화 활성'), 2000);
+                } else {
+                    throw new Error('불러오기 실패: ' + response.status);
+                }
+            } catch (error) {
+                console.error('구글 드라이브 불러오기 오류:', error);
+                updateSyncStatus('connected', '불러오기 오류');
+                alert('로드 실패: ' + error.message);
+                setTimeout(() => updateSyncStatus('connected', '동기화 활성'), 2000);
+            }
+        }
+        
+        async function findDriveFile(filename) {
+            try {
+                const response = await fetch(
+                    `https://www.googleapis.com/drive/v3/files?q=name='${filename}' and trashed=false&fields=files(id,name)&spaces=drive`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`
+                        }
+                    }
+                );
+                
+                if (!response.ok) {
+                    throw new Error('파일 검색 실패: ' + response.status);
+                }
+                
+                const result = await response.json();
+                console.log('파일 검색 결과:', result);
+                return result.files && result.files.length > 0 ? result.files[0].id : null;
+            } catch (error) {
+                console.error('파일 검색 오류:', error);
+                return null;
+            }
+        }
+        
+        function updateLastSyncTime() {
+            const now = new Date();
+            const timeStr = `마지막 동기화: ${now.toLocaleString('ko-KR')}`;
+            document.getElementById('lastSyncTime').textContent = timeStr;
+        }
+        
+        async function manualBackup() {
+            await saveToGoogleDrive();
+        }
+        
+        async function manualLoad() {
+            if (confirm('구글 드라이브에서 데이터를 불러오시겠습니까? 현재 로컬 데이터는 덮어쓰기됩니다.')) {
+                await loadFromGoogleDrive();
+            }
+        }
+        
+        // ===== 계산 및 UI 함수 =====
+        function calculate() {
+            const stockName = document.getElementById('stockName').value.trim();
+            const high = parsePrice(document.getElementById('highPrice').value);
+            const low = parsePrice(document.getElementById('lowPrice').value);
+            const bounce = parsePrice(document.getElementById('bouncePrice').value) || null;
+            const adjusted = parsePrice(document.getElementById('adjustedPrice').value) || null;
+            
+            if (!stockName || high === 0 || low === 0) {
+                alert('종목명, 고가, 저가를 모두 입력해주세요.');
+                return;
+            }
+            
+            if (high <= low) {
+                alert('고가는 저가보다 커야 합니다.');
+                return;
+            }
+            
+            const effectiveLow = adjusted !== null ? adjusted : low;
+            const priceDiff = high - low;
+            const unit = priceDiff / 4;
+            
+            // 올바른 계산 로직
+            const buy1 = adjustBuyPrice(effectiveLow - unit * 3);  // SM2라인 4단위
+            const buy2 = adjustBuyPrice(effectiveLow - unit * 4);  // SM2라인 5단위
+            const buy3 = adjustBuyPrice(buy2 - unit * 3);          // SM3라인 4단위
+            const buy4 = adjustBuyPrice(buy2 - unit * 4);          // SM3라인 5단위
+            const stopLoss = adjustSellPrice(buy4 - unit);         // SM4라인 2단위
+            
+            alert(`계산 완료!\n\n` +
+                  `1차 매수: ${formatPrice(buy1)}\n` +
+                  `2차 매수: ${formatPrice(buy2)}\n` +
+                  `3차 매수: ${formatPrice(buy3)}\n` +
+                  `4차 매수: ${formatPrice(buy4)}\n` +
+                  `손절: ${formatPrice(stopLoss)}`);
+        }
+        
+        function resetInputs() {
+            document.getElementById('stockName').value = '';
+            document.getElementById('stockCode').value = '';
+            document.getElementById('highPrice').value = '';
+            document.getElementById('lowPrice').value = '';
+            document.getElementById('bouncePrice').value = '';
+            document.getElementById('adjustedPrice').value = '';
+            currentSelectedIndex = -1;
+            renderStockList();
+            hideStockDetail();
+        }
+        
+        function addToList() {
+            const stockName = document.getElementById('stockName').value.trim();
+            const stockCode = document.getElementById('stockCode').value.trim();
+            const high = parsePrice(document.getElementById('highPrice').value);
+            const low = parsePrice(document.getElementById('lowPrice').value);
+            const bounce = parsePrice(document.getElementById('bouncePrice').value) || null;
+            const adjusted = parsePrice(document.getElementById('adjustedPrice').value) || null;
+            
+            if (!stockName || high === 0 || low === 0) {
+                alert('종목명, 고가, 저가를 모두 입력해주세요.');
+                return;
+            }
+            
+            if (high <= low) {
+                alert('고가는 저가보다 커야 합니다.');
+                return;
+            }
+            
+            const stockData = {
+                name: stockName,
+                code: stockCode || null,
+                high: high,
+                low: low,
+                bounce: bounce,
+                adjusted: adjusted,
+                timestamp: new Date().toISOString(),
+                currentPrice: null,
+                changeRate: 0,
+                reachedFlags: [false, false, false, false]
+            };
+            
+            const existingIndex = stockDatabase.findIndex(stock => stock.name === stockName);
+            
+            if (existingIndex !== -1) {
+                stockDatabase[existingIndex] = stockData;
+                alert(`"${stockName}" 종목 정보가 업데이트되었습니다!`);
+            } else {
+                stockDatabase.unshift(stockData);
+                alert(`"${stockName}" 종목이 리스트에 추가되었습니다!`);
+            }
+            
+            localStorage.setItem('smStocks', JSON.stringify(stockDatabase));
+            saveToGoogleDrive();
+            renderStockList();
+            
+            // 실시간 시세 등록 (단일 종목도 배열로 전송)
+            if (stockCode && socket && socket.connected) {
+                socket.emit('register_stocks', { 
+                    stocks: [{ 
+                        code: stockCode, 
+                        name: stockName,
+                        buy_point: null 
+                    }] 
+                });
+                console.log(`📡 실시간 시세 등록: ${stockName} (${stockCode})`);
+            }
+        }
+        
+        function renderStockList() {
+            const container = document.getElementById('stockList');
+            
+            if (stockDatabase.length === 0) {
+                container.innerHTML = '<div class="text-center text-gray-500 py-8">등록된 종목이 없습니다</div>';
+                return;
+            }
+            
+            container.innerHTML = `
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead>
+                            <tr>
+                                <th class="p-3 text-center">⋮⋮</th>
+                                <th class="p-3 text-left">종목명</th>
+                                <th class="p-3 text-center text-red-600">1차매수</th>
+                                <th class="p-3 text-center text-red-600">2차매수</th>
+                                <th class="p-3 text-center text-red-600">3차매수</th>
+                                <th class="p-3 text-center text-red-600">4차매수</th>
+                                <th class="p-3 text-center text-blue-600">1차매도</th>
+                                <th class="p-3 text-center text-blue-600">2차매도</th>
+                                <th class="p-3 text-center text-gray-600">손절</th>
+                                <th class="p-3 text-center">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${stockDatabase.map((stock, index) => {
+                                const effectiveLow = stock.adjusted !== null ? stock.adjusted : stock.low;
+                                const priceDiff = stock.high - stock.low;
+                                const unit = priceDiff / 4;
+                                
+                                // 올바른 계산 로직
+                                const buy1 = adjustBuyPrice(effectiveLow - unit * 3);  // SM2라인 4단위
+                                const buy2 = adjustBuyPrice(effectiveLow - unit * 4);  // SM2라인 5단위
+                                const buy3 = adjustBuyPrice(buy2 - unit * 3);          // SM3라인 4단위
+                                const buy4 = adjustBuyPrice(buy2 - unit * 4);          // SM3라인 5단위
+                                const stopLoss = adjustSellPrice(buy4 - unit);         // SM4라인 2단위
+                                
+                                const selected = currentSelectedIndex === index ? 'bg-purple-200' : '';
+                                
+                                let priceInfo = '';
+                                if (stock.currentPrice) {
+                                    const arrow = stock.changeRate > 0 ? '▲' : stock.changeRate < 0 ? '▼' : '';
+                                    const priceClass = stock.changeRate > 0 ? 'price-up' : stock.changeRate < 0 ? 'price-down' : 'price-flat';
+                                    priceInfo = `<br><span class="text-xs">
+                                        <span class="realtime-price ${priceClass}">₩${stock.currentPrice.toLocaleString('ko-KR')}</span>
+                                        <span class="realtime-price-change ${priceClass}">${arrow} ${stock.changeRate.toFixed(2)}%</span>
+                                    </span>`;
+                                }
+                                
+                                const proximity1 = checkProximity(stock.currentPrice, buy1);
+                                const proximity2 = checkProximity(stock.currentPrice, buy2);
+                                const proximity3 = checkProximity(stock.currentPrice, buy3);
+                                const proximity4 = checkProximity(stock.currentPrice, buy4);
+                                
+                                if (!stock.reachedFlags) {
+                                    stock.reachedFlags = [false, false, false, false];
+                                }
+                                
+                                const reached1 = stock.reachedFlags[0];
+                                const reached2 = stock.reachedFlags[1];
+                                const reached3 = stock.reachedFlags[2];
+                                const reached4 = stock.reachedFlags[3];
+                                
+                                const proximityClass1 = proximity1.isClose ? 'proximity-box' : '';
+                                // 매수타점 1 (3단계)
+                                let buy1Display;
+                                if (proximity1.isBelow || reached1) {
+                                    buy1Display = `<div class="proximity-box-below">${formatPrice(buy1)}</div>`;
+                                } else if (proximity1.isEqual) {
+                                    buy1Display = `<div class="proximity-box-equal">${formatPrice(buy1)}</div>`;
+                                } else if (proximity1.isClose) {
+                                    buy1Display = `<div class="proximity-box">${formatPrice(buy1)}</div>`;
+                                } else {
+                                    buy1Display = formatPrice(buy1);
+                                }
+                                
+                                const proximityClass2 = proximity2.isClose ? 'proximity-box' : '';
+                                // 매수타점 2 (3단계)
+                                let buy2Display;
+                                if (proximity2.isBelow || reached2) {
+                                    buy2Display = `<div class="proximity-box-below">${formatPrice(buy2)}</div>`;
+                                } else if (proximity2.isEqual) {
+                                    buy2Display = `<div class="proximity-box-equal">${formatPrice(buy2)}</div>`;
+                                } else if (proximity2.isClose) {
+                                    buy2Display = `<div class="proximity-box">${formatPrice(buy2)}</div>`;
+                                } else {
+                                    buy2Display = formatPrice(buy2);
+                                }
+                                
+                                const proximityClass3 = proximity3.isClose ? 'proximity-box' : '';
+                                // 매수타점 3 (3단계)
+                                let buy3Display;
+                                if (proximity3.isBelow || reached3) {
+                                    buy3Display = `<div class="proximity-box-below">${formatPrice(buy3)}</div>`;
+                                } else if (proximity3.isEqual) {
+                                    buy3Display = `<div class="proximity-box-equal">${formatPrice(buy3)}</div>`;
+                                } else if (proximity3.isClose) {
+                                    buy3Display = `<div class="proximity-box">${formatPrice(buy3)}</div>`;
+                                } else {
+                                    buy3Display = formatPrice(buy3);
+                                }
+                                
+                                const proximityClass4 = proximity4.isClose ? 'proximity-box' : '';
+                                // 매수타점 4 (3단계)
+                                let buy4Display;
+                                if (proximity4.isBelow || reached4) {
+                                    buy4Display = `<div class="proximity-box-below">${formatPrice(buy4)}</div>`;
+                                } else if (proximity4.isEqual) {
+                                    buy4Display = `<div class="proximity-box-equal">${formatPrice(buy4)}</div>`;
+                                } else if (proximity4.isClose) {
+                                    buy4Display = `<div class="proximity-box">${formatPrice(buy4)}</div>`;
+                                } else {
+                                    buy4Display = formatPrice(buy4);
+                                }
+                                
+                                let sell1 = '-', sell2 = '-';
+                                if (stock.bounce !== null) {
+                                    const sellDiff = effectiveLow - stock.bounce;
+                                    const sellUnit = sellDiff / 4;
+                                    sell1 = formatPrice(adjustSellPrice(effectiveLow - sellUnit * 2));
+                                    sell2 = formatPrice(adjustSellPrice(effectiveLow - sellUnit));
+                                }
+                                
+                                const rowBgColor = index % 2 === 0 ? 'bg-white' : 'bg-purple-50';
+                                
+                                return `
+                                    <tr class="${selected} ${rowBgColor} hover:bg-purple-100 cursor-pointer border-b transition-colors"
+                                        draggable="true"
+                                        ondragstart="handleDragStart(event, ${index})"
+                                        ondragover="handleDragOver(event)"
+                                        ondrop="handleDrop(event, ${index})"
+                                        ondragend="handleDragEnd(event)"
+                                        onclick="loadStock(${index})">
+                                        <td class="drag-handle p-3" onclick="event.stopPropagation()">⋮⋮</td>
+                                        <td class="p-3 font-bold">${stock.name}${priceInfo}</td>
+                                        <td class="p-3 text-center text-red-600 font-semibold">${buy1Display}</td>
+                                        <td class="p-3 text-center text-red-600 font-semibold">${buy2Display}</td>
+                                        <td class="p-3 text-center text-red-600 font-semibold">${buy3Display}</td>
+                                        <td class="p-3 text-center text-red-600 font-semibold">${buy4Display}</td>
+                                        <td class="p-3 text-center text-blue-600 font-semibold">${sell1}</td>
+                                        <td class="p-3 text-center text-blue-600 font-semibold">${sell2}</td>
+                                        <td class="p-3 text-center text-gray-600 font-semibold">${formatPrice(stopLoss)}</td>
+                                        <td class="p-3 text-center">
+                                            <button class="delete-btn" onclick="deleteStock(${index}, event)">삭제</button>
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        function handleDragStart(e, index) {
+            draggedIndex = index;
+            e.target.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+        
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+        
+        function handleDrop(e, targetIndex) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (draggedIndex === null || draggedIndex === targetIndex) {
+                return false;
+            }
+            
+            const draggedItem = stockDatabase[draggedIndex];
+            stockDatabase.splice(draggedIndex, 1);
+            stockDatabase.splice(targetIndex, 0, draggedItem);
+            
+            if (currentSelectedIndex === draggedIndex) {
+                currentSelectedIndex = targetIndex;
+            } else if (draggedIndex < currentSelectedIndex && targetIndex >= currentSelectedIndex) {
+                currentSelectedIndex--;
+            } else if (draggedIndex > currentSelectedIndex && targetIndex <= currentSelectedIndex) {
+                currentSelectedIndex++;
+            }
+            
+            localStorage.setItem('smStocks', JSON.stringify(stockDatabase));
+            saveToGoogleDrive();
+            renderStockList();
+            
+            return false;
+        }
+        
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+            draggedIndex = null;
+        }
+        
+        function loadStock(index) {
+            currentSelectedIndex = index;
+            const stock = stockDatabase[index];
+            
+            document.getElementById('stockName').value = stock.name;
+            document.getElementById('stockCode').value = stock.code || '';
+            document.getElementById('highPrice').value = stock.high.toLocaleString('ko-KR');
+            document.getElementById('lowPrice').value = stock.low.toLocaleString('ko-KR');
+            document.getElementById('bouncePrice').value = stock.bounce !== null ? stock.bounce.toLocaleString('ko-KR') : '';
+            document.getElementById('adjustedPrice').value = stock.adjusted !== null ? stock.adjusted.toLocaleString('ko-KR') : '';
+            
+            renderStockList();
+            showStockDetail(index);
+        }
+        
+        function showStockDetail(index) {
+            const stock = stockDatabase[index];
+            const effectiveLow = stock.adjusted !== null ? stock.adjusted : stock.low;
+            const priceDiff = stock.high - stock.low;
+            const unit = priceDiff / 4;
+            
+            // 매수 계산
+            const buy1 = adjustBuyPrice(effectiveLow - unit * 3);  // SM2라인 4단위
+            const buy2 = adjustBuyPrice(effectiveLow - unit * 4);  // SM2라인 5단위
+            const buy3 = adjustBuyPrice(buy2 - unit * 3);          // SM3라인 4단위
+            const buy4 = adjustBuyPrice(buy2 - unit * 4);          // SM3라인 5단위
+            const stopLoss = adjustSellPrice(buy4 - unit);         // SM4라인 2단위
+            
+            // 상세정보 제목 및 종목명
+            document.getElementById('detailStockName').textContent = stock.name;
+            document.getElementById('summaryStockName').textContent = stock.name;
+            
+            // 상승률 계산 (SM라인 1단위와 5단위 사이의 상승률)
+            const priceRate = ((stock.high - effectiveLow) / effectiveLow) * 100;
+            document.getElementById('summaryPriceRate').textContent = priceRate.toFixed(1) + '%';
+            
+            // 반등폭 계산 (저가와 반등저점 사이의 상승률)
+            if (stock.bounce !== null) {
+                const bounceRate = ((effectiveLow - stock.bounce) / stock.bounce) * 100;
+                document.getElementById('summaryBounceRate').textContent = bounceRate.toFixed(1) + '%';
+            } else {
+                document.getElementById('summaryBounceRate').textContent = '-';
+            }
+            
+            // 매수 타점
+            document.getElementById('summaryBuy1').textContent = formatPrice(buy1);
+            document.getElementById('summaryBuy2').textContent = formatPrice(buy2);
+            document.getElementById('summaryBuy3').textContent = formatPrice(buy3);
+            document.getElementById('summaryBuy4').textContent = formatPrice(buy4);
+            document.getElementById('summaryStopLoss').textContent = formatPrice(stopLoss);
+            
+            // 매도 타점 (반등폭 포함)
+            if (stock.bounce !== null) {
+                const sellDiff = effectiveLow - stock.bounce;
+                const sellUnit = sellDiff / 4;
+                const sell1 = adjustSellPrice(effectiveLow - sellUnit * 2);  // 3단위
+                const sell2 = adjustSellPrice(effectiveLow - sellUnit);       // 2단위
+                
+                // 각 매도 타점의 반등폭 계산
+                const sell1BounceRate = ((sell1 - stock.bounce) / stock.bounce) * 100;
+                const sell2BounceRate = ((sell2 - stock.bounce) / stock.bounce) * 100;
+                
+                document.getElementById('summarySell1').textContent = formatPrice(sell1);
+                document.getElementById('summarySell2').textContent = formatPrice(sell2);
+                
+                // 매도 타점 설명에 반등폭 추가
+                document.getElementById('sell1Description').textContent = `(매도라인 3단위) (반등폭 ${sell1BounceRate.toFixed(1)}%)`;
+                document.getElementById('sell2Description').textContent = `(매도라인 2단위) (반등폭 ${sell2BounceRate.toFixed(1)}%)`;
+            } else {
+                document.getElementById('summarySell1').textContent = '-';
+                document.getElementById('summarySell2').textContent = '-';
+                document.getElementById('sell1Description').textContent = '(매도라인 3단위)';
+                document.getElementById('sell2Description').textContent = '(매도라인 2단위)';
+            }
+            
+            // SM라인별 계산 (고가-저가를 5등분한 구간)
+            // SM1라인 - 고가에서 저가까지
+            document.getElementById('sm1_1').textContent = formatPrice(stock.high);
+            document.getElementById('sm1_2').textContent = formatPrice(stock.high - unit);
+            document.getElementById('sm1_3').textContent = formatPrice(stock.high - unit * 2);
+            document.getElementById('sm1_4').textContent = formatPrice(stock.high - unit * 3);
+            document.getElementById('sm1_5').textContent = formatPrice(effectiveLow);
+            
+            // SM2라인 - 저가부터 아래로
+            document.getElementById('sm2_1').textContent = formatPrice(effectiveLow);
+            document.getElementById('sm2_2').textContent = formatPrice(effectiveLow - unit);
+            document.getElementById('sm2_3').textContent = formatPrice(effectiveLow - unit * 2);
+            document.getElementById('sm2_4').textContent = formatPrice(buy1);  // 1차 매수
+            document.getElementById('sm2_5').textContent = formatPrice(buy2);  // 2차 매수
+            
+            // SM3라인 - 2차매수부터 아래로
+            document.getElementById('sm3_1').textContent = formatPrice(buy2);
+            document.getElementById('sm3_2').textContent = formatPrice(buy2 - unit);
+            document.getElementById('sm3_3').textContent = formatPrice(buy2 - unit * 2);
+            document.getElementById('sm3_4').textContent = formatPrice(buy3);  // 3차 매수
+            document.getElementById('sm3_5').textContent = formatPrice(buy4);  // 4차 매수
+            
+            // SM4라인 - 4차매수부터 아래로
+            document.getElementById('sm4_1').textContent = formatPrice(buy4);
+            document.getElementById('sm4_2').textContent = formatPrice(stopLoss);  // 손절
+            document.getElementById('sm4_3').textContent = formatPrice(buy4 - unit * 2);
+            document.getElementById('sm4_4').textContent = formatPrice(buy4 - unit * 3);
+            document.getElementById('sm4_5').textContent = formatPrice(buy4 - unit * 4);
+            
+            // 매도라인 (반등저가가 있을 경우)
+            if (stock.bounce !== null) {
+                const sellDiff = effectiveLow - stock.bounce;
+                const sellUnit = sellDiff / 4;
+                
+                document.getElementById('sell_line_1').textContent = formatPrice(effectiveLow);
+                document.getElementById('sell_line_2').textContent = formatPrice(adjustSellPrice(effectiveLow - sellUnit));      // 2차 매도
+                document.getElementById('sell_line_3').textContent = formatPrice(adjustSellPrice(effectiveLow - sellUnit * 2));  // 1차 매도
+                document.getElementById('sell_line_4').textContent = formatPrice(effectiveLow - sellUnit * 3);
+                document.getElementById('sell_line_5').textContent = formatPrice(stock.bounce);
+            } else {
+                document.getElementById('sell_line_1').textContent = '-';
+                document.getElementById('sell_line_2').textContent = '-';
+                document.getElementById('sell_line_3').textContent = '-';
+                document.getElementById('sell_line_4').textContent = '-';
+                document.getElementById('sell_line_5').textContent = '-';
+            }
+            
+            // 디테일 카드 표시
+            document.getElementById('stockDetail').style.display = 'block';
+        }
+        
+        function hideStockDetail() {
+            document.getElementById('stockDetail').style.display = 'none';
+        }
+        
+        function deleteStock(index, event) {
+            event.stopPropagation();
+            
+            const stock = stockDatabase[index];
+            if (confirm(`"${stock.name}" 종목을 삭제하시겠습니까?`)) {
+                stockDatabase.splice(index, 1);
+                localStorage.setItem('smStocks', JSON.stringify(stockDatabase));
+                
+                if (currentSelectedIndex === index) {
+                    currentSelectedIndex = -1;
+                    hideStockDetail();
+                } else if (currentSelectedIndex > index) {
+                    currentSelectedIndex--;
+                }
+                
+                saveToGoogleDrive();
+                renderStockList();
+                registerAllStocks();
+            }
+        }
+        
+        // 페이지 로드 시 초기화
+        window.onload = function() {
+            renderStockList();
+            gapiLoaded();
+            gisLoaded();
+            
+            const priceInputs = ['highPrice', 'lowPrice', 'bouncePrice', 'adjustedPrice'];
+            priceInputs.forEach(id => {
+                const input = document.getElementById(id);
+                input.addEventListener('input', function() {
+                    formatInputPrice(this);
+                });
+            });
+            
+            const waitForInit = setInterval(async () => {
+                if (gapiInited && gisInited) {
+                    clearInterval(waitForInit);
+                    await restoreLoginState();
+                }
+            }, 100);
+        };
+    </script>
+    
+    <!-- 알림 설정 모달 -->
+    <div id="alertModal" class="alert-modal">
+        <div class="alert-modal-content">
+            <h2 class="text-2xl font-bold mb-6" style="color: #667eea;">🔔 알림 설정</h2>
+            
+            <div class="space-y-4">
+                <!-- 알림음 설정 -->
+                <div class="flex items-center justify-between">
+                    <label class="font-semibold">알림음 활성화</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="soundAlertToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <!-- 알림 민감도 -->
+                <div>
+                    <label class="font-semibold block mb-2">알림 민감도 (매수타점 근접 %)</label>
+                    <input type="number" id="alertThreshold" value="2" min="0.5" max="10" step="0.5" 
+                           class="border-2 border-gray-300 rounded-lg px-4 py-2 w-full">
+                    <p class="text-sm text-gray-600 mt-1">매수타점에서 ±이 범위 내에 오면 알림</p>
+                </div>
+                
+                <!-- 텔레그램 설정 안내 -->
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 class="font-semibold text-blue-900 mb-2">📱 텔레그램 알림</h3>
+                    <p class="text-sm text-blue-800">
+                        텔레그램 알림은 서버(app.py)에서 설정합니다.
+                    </p>
+                </div>
+                
+                <!-- 테스트 버튼 -->
+                <button onclick="testAlertSound()" 
+                        class="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition">
+                    🔊 알림음 테스트
+                </button>
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+                <button onclick="saveAlertSettings()" 
+                        class="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">
+                    저장
+                </button>
+                <button onclick="closeAlertSettings()" 
+                        class="flex-1 bg-gray-400 text-white py-3 rounded-lg font-semibold hover:bg-gray-500 transition">
+                    닫기
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 알림 설정
+        let soundAlertEnabled = true;
+        let alertThreshold = 2.0;
+        let audioContext;
+        
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+        
+        function playAlertSound() {
+            if (!soundAlertEnabled) return;
+            
+            try {
+                initAudio();
+                
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800;
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.2);
+                
+                setTimeout(() => {
+                    const osc2 = audioContext.createOscillator();
+                    const gain2 = audioContext.createGain();
+                    
+                    osc2.connect(gain2);
+                    gain2.connect(audioContext.destination);
+                    
+                    osc2.frequency.value = 1000;
+                    gain2.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                    
+                    osc2.start(audioContext.currentTime);
+                    osc2.stop(audioContext.currentTime + 0.2);
+                }, 150);
+                
+            } catch (e) {
+                console.error('알림음 재생 오류:', e);
+            }
+        }
+        
+        function testAlertSound() {
+            playAlertSound();
+        }
+        
+        function showAlertToast(message, type = 'near') {
+            const existingToast = document.querySelector('.alert-toast');
+            if (existingToast) existingToast.remove();
+            
+            const toast = document.createElement('div');
+            toast.className = 'alert-toast';
+            toast.innerHTML = `
+                <div class="font-bold mb-1">${type === 'reached' ? '🎯 매수타점 도달!' : '⚠️ 매수타점 근접!'}</div>
+                <div class="text-sm">${message}</div>
+            `;
+            document.body.appendChild(toast);
+            
+            playAlertSound();
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+        
+        function openAlertSettings() {
+            document.getElementById('alertModal').classList.add('active');
+            
+            soundAlertEnabled = localStorage.getItem('soundAlertEnabled') !== 'false';
+            alertThreshold = parseFloat(localStorage.getItem('alertThreshold') || '2.0');
+            
+            document.getElementById('soundAlertToggle').checked = soundAlertEnabled;
+            document.getElementById('alertThreshold').value = alertThreshold;
+        }
+        
+        function closeAlertSettings() {
+            document.getElementById('alertModal').classList.remove('active');
+        }
+        
+        function saveAlertSettings() {
+            soundAlertEnabled = document.getElementById('soundAlertToggle').checked;
+            alertThreshold = parseFloat(document.getElementById('alertThreshold').value);
+            
+            localStorage.setItem('soundAlertEnabled', soundAlertEnabled);
+            localStorage.setItem('alertThreshold', alertThreshold);
+            
+            if (socket && socket.connected) {
+                socket.emit('update_alert_config', { threshold: alertThreshold });
+            }
+            
+            alert('알림 설정이 저장되었습니다!');
+            closeAlertSettings();
+        }
+        
+        soundAlertEnabled = localStorage.getItem('soundAlertEnabled') !== 'false';
+        alertThreshold = parseFloat(localStorage.getItem('alertThreshold') || '2.0');
+    </script>
+</body>
+</html>
